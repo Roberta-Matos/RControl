@@ -3,25 +3,24 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Projeto Iniciante HTML, CSS e JavaScript</title>
-  <link rel="stylesheet" href="style.css" />
+  <title>Projeto Tabelas por Nome</title>
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <header>
-    <h1>Bem-vindo ao seu Projeto!</h1>
-    <h2>HTML, CSS e JavaScript juntos</h2>
+    <h1>Projeto: Uma tabela por nome</h1>
   </header>
 
   <main id="mainContent">
-    <!-- As tabelas vão ser adicionadas aqui dinamicamente -->
+    <div class="controls">
+      <input type="text" id="personNameInput" placeholder="Nome da pessoa" autocomplete="off" />
+      <button id="addTableBtn" type="button">➕ Criar nova tabela</button>
+    </div>
   </main>
-
-  <div class="page-actions">
-    <button id="addTableBtn" type="button" aria-label="Adicionar Nova Tabela">➕ Nova Tabela</button>
-  </div>
 
   <script src="script.js"></script>
 </body>
 </html>
+
 
 

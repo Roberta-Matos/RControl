@@ -30,8 +30,13 @@ h1 {
   letter-spacing: 3px;
   font-weight: 900;
   background: linear-gradient(90deg, #ff79c6, #8e44ad);
+  /*compatibilidade padrão*/
+  background-clip: text;
+
+  /*Compatibilidade com navegadores baseados em WebKit */
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
+  letter-spacing: 3px;
 }
 
 h2 {
@@ -222,5 +227,9 @@ button:disabled {
     width: 75px;
   }
 }
+
+
+
+
 
 
