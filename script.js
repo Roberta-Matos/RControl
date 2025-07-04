@@ -1,151 +1,279 @@
 const mainContent = document.getElementById('mainContent');
-const addTableBtn = document.getElementById('addTableBtn');
-const personNameInput = document.getElementById('personNameInput');
+const addPersonBtn = document.getElementById('addOperationBtn');
 
-const existingTables = new Map();
+const personInput = document.getElementById('personNameInput');
+const productInput = document.getElementById('productNameInput');
+const operationInput = document.getElementById('operationTypeInput');
+const quantityInput = document.getElementById('operationQuantityInput');
+const valueInput = document.getElementById('operationValueInput');
 
-function createTableForPerson(name) {
-  if (existingTables.has(name)) {
-    alert(`Já existe uma tabela para "${name}".`);
+const peopleTables = new Map();
+
+addPersonBtn.addEventListener('click', () => {
+  const person = personInput.value.trim().toLowerCase();
+  const product = productInput.value.trim().toLowerCase();
+  const operation = operationInput.value.trim();
+  const quantity = parseInt(quantityInput.value);
+  const value = parseFloat(valueInput.value);
+
+  if (!person || !product || !operation || isNaN(value) || isNaN(quantity) || quantity <= 0) {
+    alert('Preencha todos os campos corretamente.');
     return;
   }
 
-  // Container da tabela
-  const container = document.createElement('section');
-  container.classList.add('table-container');
-
-  // Título com o nome da pessoa
-  const title = document.createElement('h2');
-  title.textContent = `Produtos de: ${name}`;
-  container.appendChild(title);
-
-  // Ações da tabela
-  const actionsDiv = document.createElement('div');
-  actionsDiv.classList.add('table-actions');
-  container.appendChild(actionsDiv);
-
-  const addRowBtn = document.createElement('button');
-  addRowBtn.textContent = '➕ Adicionar Produto';
-  addRowBtn.classList.add('add-row-btn');
-  actionsDiv.appendChild(addRowBtn);
-
-  // Tabela HTML
-  const table = document.createElement('table');
-
-  const thead = document.createElement('thead');
-  thead.innerHTML = `
-    <tr>
-      <th>Produto</th>
-      <th>Quantidade</th>
-      <th>Valor da Peça (R$)</th>
-      <th>Total (R$)</th>
-    </tr>
-  `;
-  table.appendChild(thead);
-
-  const tbody = document.createElement('tbody');
-  table.appendChild(tbody);
-
-  container.appendChild(table);
-
-  // Total geral
-  const totalContainer = document.createElement('div');
-  totalContainer.classList.add('total-container');
-  totalContainer.textContent = 'Total Geral: R$ 0,00';
-  container.appendChild(totalContainer);
-
-  mainContent.appendChild(container);
-
-  // Função para atualizar totais da tabela
-  function updateTotals() {
-    let totalSum = 0;
-    tbody.querySelectorAll('tr').forEach(row => {
-      const qtyInput = row.querySelector('.qty-input');
-      const priceInput = row.querySelector('.price-input');
-      const totalCell = row.querySelector('.row-total');
-
-      const qty = parseFloat(qtyInput.value) || 0;
-      const price = parseFloat(priceInput.value) || 0;
-
-      const total = qty * price;
-      totalCell.textContent = total.toFixed(2);
-
-      totalSum += total;
-    });
-
-    totalContainer.textContent = `Total Geral: R$ ${totalSum.toFixed(2)}`;
+  // Cria tabela da pessoa se necessário
+  if (!peopleTables.has(person)) {
+    createPersonTable(person);
   }
 
-  // Função para criar uma nova linha na tabela
-  function addRow() {
-    const row = document.createElement('tr');
+  // Adiciona a operação ao produto
+  addProductOperation(person, product, operation, quantity, value);
 
-    // Produto
-    const tdProduct = document.createElement('td');
-    const productInput = document.createElement('input');
-    productInput.type = 'text';
-    productInput.placeholder = 'Nome do produto';
-    productInput.required = true;
-    productInput.classList.add('product-input');
-    tdProduct.appendChild(productInput);
-    row.appendChild(tdProduct);
-
-    // Quantidade
-    const tdQty = document.createElement('td');
-    const qtyInput = document.createElement('input');
-    qtyInput.type = 'number';
-    qtyInput.min = '0';
-    qtyInput.step = '1';
-    qtyInput.value = '0';
-    qtyInput.classList.add('qty-input');
-    tdQty.appendChild(qtyInput);
-    row.appendChild(tdQty);
-
-    // Valor da Peça
-    const tdPrice = document.createElement('td');
-    const priceInput = document.createElement('input');
-    priceInput.type = 'number';
-    priceInput.min = '0';
-    priceInput.step = '0.01';
-    priceInput.value = '0.00';
-    priceInput.classList.add('price-input');
-    tdPrice.appendChild(priceInput);
-    row.appendChild(tdPrice);
-
-    // Total da linha
-    const tdTotal = document.createElement('td');
-    tdTotal.textContent = '0.00';
-    tdTotal.classList.add('row-total');
-    row.appendChild(tdTotal);
-
-    tbody.appendChild(row);
-
-    // Atualizar totais sempre que mudar quantidade ou preço
-    [qtyInput, priceInput].forEach(input => {
-      input.addEventListener('input', updateTotals);
-    });
-
-    updateTotals();
-  }
-
-  addRowBtn.addEventListener('click', addRow);
-
-  // Começar com uma linha vazia
-  addRow();
-
-  existingTables.set(name, container);
-}
-
-addTableBtn.addEventListener('click', () => {
-  const name = personNameInput.value.trim();
-  if (!name) {
-    alert('Por favor, insira o nome da pessoa antes de criar a tabela.');
-    personNameInput.focus();
-    return;
-  }
-  createTableForPerson(name);
-  personNameInput.value = '';
-  personNameInput.focus();
+  // Limpa campos principais
+  personInput.value = '';
+  productInput.value = '';
+  operationInput.value = '';
+  quantityInput.value = '';
+  valueInput.value = '';
 });
 
+function createPersonTable(person) {
+  const section = document.createElement('section');
+  section.className = 'person-section';
 
+  const title = document.createElement('h2');
+title.textContent = `Tabela de ${capitalize(person)}`;
+section.appendChild(title);
+
+// 👇 Botão de excluir tabela
+const deleteTableBtn = document.createElement('button');
+deleteTableBtn.textContent = '🗑️ Excluir Tabela';
+deleteTableBtn.className = 'delete-table-btn';
+deleteTableBtn.style.marginBottom = '1rem';
+
+deleteTableBtn.addEventListener('click', () => {
+  const confirmar = confirm(`Tem certeza que deseja excluir toda a tabela de ${capitalize(person)}?`);
+  if (confirmar) {
+    section.remove(); // Remove visualmente
+    peopleTables.delete(person); // Remove da estrutura de dados
+  }
+});
+
+section.appendChild(deleteTableBtn);
+
+  const table = document.createElement('table');
+  table.innerHTML = `
+    <thead>
+      <tr>
+        <th>Produto</th>
+        <th>Operações</th>
+        <th>Total (R$)</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  `;
+  section.appendChild(table);
+
+  // Formulário interno
+  const inputGroup = document.createElement('div');
+  inputGroup.innerHTML = `
+    <input type="text" id="productInput-${person}" placeholder="Produto" />
+    <input type="text" id="operationInput-${person}" placeholder="Operação" />
+    <input type="number" id="quantityInput-${person}" placeholder="Qtd" min="1" />
+    <input type="number" id="valueInput-${person}" placeholder="Valor unitário" step="0.01" min="0" />
+    <button type="button" id="addProductBtn-${person}">➕ Adicionar Produto</button>
+  `;
+  section.appendChild(inputGroup);
+
+  mainContent.appendChild(section);
+
+  const personData = {
+    produtos: {},
+    tbody: table.querySelector('tbody')
+  };
+
+  peopleTables.set(person, personData);
+
+  // Botão interno da pessoa
+  inputGroup.querySelector(`#addProductBtn-${person}`).addEventListener('click', () => {
+    const prod = inputGroup.querySelector(`#productInput-${person}`).value.trim().toLowerCase();
+    const op = inputGroup.querySelector(`#operationInput-${person}`).value.trim();
+    const qtd = parseInt(inputGroup.querySelector(`#quantityInput-${person}`).value);
+    const val = parseFloat(inputGroup.querySelector(`#valueInput-${person}`).value);
+
+    if (!prod || !op || isNaN(qtd) || isNaN(val) || qtd <= 0) return;
+
+    addProductOperation(person, prod, op, qtd, val);
+
+    // Limpa inputs locais
+    inputGroup.querySelector(`#productInput-${person}`).value = '';
+    inputGroup.querySelector(`#operationInput-${person}`).value = '';
+    inputGroup.querySelector(`#quantityInput-${person}`).value = '';
+    inputGroup.querySelector(`#valueInput-${person}`).value = '';
+  });
+}
+
+function addProductOperation(person, product, operation, quantity, unitValue) {
+  const personData = peopleTables.get(person);
+
+  if (!personData.produtos[product]) {
+    personData.produtos[product] = [];
+  }
+
+  personData.produtos[product].push({
+    tipo: operation,
+    quantidade: quantity,
+    valor: unitValue
+  });
+
+  renderTable(person);
+}
+
+function renderTable(person) {
+  const { produtos, tbody } = peopleTables.get(person);
+  tbody.innerHTML = '';
+
+  let totalGeral = 0;
+
+  for (const produto in produtos) {
+    const operacoes = produtos[produto];
+    let subtotal = 0;
+
+    const opsHTML = operacoes.map(op => {
+      const totalOp = op.quantidade * op.valor;
+      subtotal += totalOp;
+      return `<li>${op.tipo}: ${op.quantidade} × R$ ${op.valor.toFixed(2)} = <strong>R$ ${totalOp.toFixed(2)}</strong></li>`;
+    }).join('');
+
+    totalGeral += subtotal;
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${produto}</td>
+      <td><ul>${opsHTML}</ul></td>
+      <td>
+        <strong>R$ ${subtotal.toFixed(2)}</strong><br>
+        <button class="edit-product-btn" data-produto="${produto}" data-pessoa="${person}">✏️ Editar</button>
+        <button class="delete-product-btn" data-produto="${produto}" data-pessoa="${person}">🗑️ Excluir</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  }
+
+  const totalRow = document.createElement('tr');
+  totalRow.innerHTML = `
+    <td colspan="2" style="text-align:right;"><strong>Total Geral:</strong></td>
+    <td><strong style="color:#c026d3;">R$ ${totalGeral.toFixed(2)}</strong></td>
+  `;
+  tbody.appendChild(totalRow);
+
+  // Excluir produto
+  tbody.querySelectorAll('.delete-product-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const produto = btn.dataset.produto;
+      const pessoa = btn.dataset.pessoa;
+      if (confirm(`Deseja excluir o produto "${produto}" da tabela de ${capitalize(pessoa)}?`)) {
+        delete peopleTables.get(pessoa).produtos[produto];
+        renderTable(pessoa);
+      }
+    });
+  });
+
+  // Editar produto
+  tbody.querySelectorAll('.edit-product-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const produto = btn.dataset.produto;
+      const pessoa = btn.dataset.pessoa;
+      const produtoAtual = peopleTables.get(pessoa).produtos[produto];
+
+      // Prompt para nova descrição (simples)
+      const novoNome = prompt(`Editar nome do produto "${produto}":`, produto);
+      if (!novoNome) return;
+
+      // Opcional: redefinir operações
+      const redefinir = confirm("Deseja redefinir as operações existentes?");
+      let novasOperacoes = produtoAtual;
+
+      if (redefinir) {
+        const novaLista = prompt("Digite novas operações no formato: tipo,qtd,valor;tipo,qtd,valor...");
+        if (novaLista) {
+          novasOperacoes = novaLista.split(";").map(item => {
+            const [tipo, qtd, val] = item.split(",");
+            return {
+              tipo: tipo.trim(),
+              quantidade: parseInt(qtd),
+              valor: parseFloat(val)
+            };
+          }).filter(op => op.tipo && !isNaN(op.quantidade) && !isNaN(op.valor));
+        }
+      }
+
+      // Atualiza dados
+      const tabela = peopleTables.get(pessoa);
+      delete tabela.produtos[produto];
+      tabela.produtos[novoNome.toLowerCase()] = novasOperacoes;
+      renderTable(pessoa);
+    });
+    tbody.querySelectorAll('.edit-product-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const produto = btn.dataset.produto;
+    const pessoa = btn.dataset.pessoa;
+    const tabela = peopleTables.get(pessoa);
+    const operacoes = tabela.produtos[produto];
+
+    // Cria nova linha com formulário
+    const editRow = document.createElement('tr');
+    editRow.innerHTML = `
+      <td><input type="text" class="edit-produto-nome" value="${produto}" /></td>
+      <td>
+        <div class="edit-ops">
+          ${operacoes.map((op, i) => `
+            <div style="margin-bottom: 0.5rem;">
+              <input type="text" placeholder="Operação" value="${op.tipo}" data-i="${i}" class="edit-op" />
+              <input type="number" min="1" value="${op.quantidade}" data-i="${i}" class="edit-qtd" />
+              <input type="number" min="0" step="0.01" value="${op.valor}" data-i="${i}" class="edit-val" />
+            </div>
+          `).join('')}
+        </div>
+      </td>
+      <td>
+        <button class="save-edit-btn" data-produto="${produto}" data-pessoa="${pessoa}">💾 Salvar</button>
+        <button class="cancel-edit-btn">❌ Cancelar</button>
+      </td>
+    `;
+
+    // Substitui a linha original pela edição
+    btn.closest('tr').replaceWith(editRow);
+
+    // Cancelar
+    editRow.querySelector('.cancel-edit-btn').addEventListener('click', () => {
+      renderTable(pessoa);
+    });
+
+    // Salvar
+    editRow.querySelector('.save-edit-btn').addEventListener('click', () => {
+      const novoNome = editRow.querySelector('.edit-produto-nome').value.trim().toLowerCase();
+
+      const novosDados = Array.from(editRow.querySelectorAll('.edit-ops > div')).map(div => ({
+        tipo: div.querySelector('.edit-op').value.trim(),
+        quantidade: parseInt(div.querySelector('.edit-qtd').value),
+        valor: parseFloat(div.querySelector('.edit-val').value)
+      })).filter(op => op.tipo && !isNaN(op.quantidade) && !isNaN(op.valor));
+
+      if (!novoNome || novosDados.length === 0) {
+        alert("Preencha todos os campos corretamente.");
+        return;
+      }
+
+      delete tabela.produtos[produto]; // Remove antigo
+      tabela.produtos[novoNome] = novosDados; // Adiciona novo
+      renderTable(pessoa);
+    });
+  });
+});
+  });
+}
+
+function capitalize(str) {
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
