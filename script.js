@@ -1,67 +1,135 @@
-const mainContent = document.getElementById('mainContent');
-const addPersonBtn = document.getElementById('addOperationBtn');
+// ...existing code...
+/*
+  script.js final — persistência (localStorage), edição inline (somente produto + operações),
+  toast visual e atalhos Enter/Esc. Substitua todo o arquivo por este.
+*/
 
-const personInput = document.getElementById('personNameInput');
-const productInput = document.getElementById('productNameInput');
-const operationInput = document.getElementById('operationTypeInput');
-const quantityInput = document.getElementById('operationQuantityInput');
-const valueInput = document.getElementById('operationValueInput');
+const STORAGE_KEY = "rcontrol:data";
+
+const mainContent = document.getElementById("mainContent");
+const addPersonBtn = document.getElementById("addOperationBtn");
+
+const personInput = document.getElementById("personNameInput");
+const productInput = document.getElementById("productNameInput");
+const operationInput = document.getElementById("operationTypeInput");
+const quantityInput = document.getElementById("operationQuantityInput");
+const valueInput = document.getElementById("operationValueInput");
 
 const peopleTables = new Map();
 
-addPersonBtn.addEventListener('click', () => {
-  const person = personInput.value.trim().toLowerCase();
-  const product = productInput.value.trim().toLowerCase();
-  const operation = operationInput.value.trim();
-  const quantity = parseInt(quantityInput.value);
+/* ---------- Persistence (localStorage) ---------- */
+function loadDB() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch (e) {
+    console.error("loadDB", e);
+    return {};
+  }
+}
+
+function saveAll() {
+  const out = {};
+  for (const [person, data] of peopleTables.entries()) {
+    out[person] = { produtos: data.produtos || {} };
+  }
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(out));
+  } catch (e) {
+    console.error("saveAll", e);
+  }
+}
+
+/* ---------- Toast (feedback) ---------- */
+function showToast(msg, type = "ok", ms = 2200) {
+  let toast = document.getElementById("rcontrolToast");
+  if (!toast) {
+    toast = document.createElement("div");
+    toast.id = "rcontrolToast";
+    toast.className = "rcontrol-toast";
+    document.body.appendChild(toast);
+  }
+  toast.textContent = msg;
+  toast.className = `rcontrol-toast rcontrol-toast--${type}`;
+  toast.style.opacity = "1";
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => {
+    toast.style.opacity = "0";
+  }, ms);
+}
+
+/* ---------- Hydrate from storage on load ---------- */
+(function hydrate() {
+  const db = loadDB();
+  Object.keys(db).forEach((person) => {
+    createPersonTable(person);
+    const personData = peopleTables.get(person);
+    personData.produtos = db[person].produtos || {};
+    renderTable(person);
+  });
+})();
+
+/* ---------- Events: add via top form ---------- */
+addPersonBtn?.addEventListener("click", () => {
+  const person = (personInput.value || "").trim().toLowerCase();
+  const product = (productInput.value || "").trim().toLowerCase();
+  const operation = (operationInput.value || "").trim();
+  const quantity = parseInt(quantityInput.value, 10);
   const value = parseFloat(valueInput.value);
 
-  if (!person || !product || !operation || isNaN(value) || isNaN(quantity) || quantity <= 0) {
-    alert('Preencha todos os campos corretamente.');
+  if (
+    !person ||
+    !product ||
+    !operation ||
+    isNaN(value) ||
+    isNaN(quantity) ||
+    quantity <= 0
+  ) {
+    showToast("Preencha todos os campos corretamente.", "error");
     return;
   }
 
-  // Cria tabela da pessoa se necessário
-  if (!peopleTables.has(person)) {
-    createPersonTable(person);
-  }
-
-  // Adiciona a operação ao produto
+  if (!peopleTables.has(person)) createPersonTable(person);
   addProductOperation(person, product, operation, quantity, value);
 
-  // Limpa campos principais
-  personInput.value = '';
-  productInput.value = '';
-  operationInput.value = '';
-  quantityInput.value = '';
-  valueInput.value = '';
+  personInput.value = "";
+  productInput.value = "";
+  operationInput.value = "";
+  quantityInput.value = "";
+  valueInput.value = "";
+  showToast("Produto adicionado", "ok");
 });
 
+/* ---------- Create person section and inputs ---------- */
 function createPersonTable(person) {
-  const section = document.createElement('section');
-  section.className = 'person-section';
+  if (peopleTables.has(person)) return;
 
-  const title = document.createElement('h2');
-title.textContent = `Tabela de ${capitalize(person)}`;
-section.appendChild(title);
+  const section = document.createElement("section");
+  section.className = "person-section";
 
-// 👇 Botão de excluir tabela
-const deleteTableBtn = document.createElement('button');
-deleteTableBtn.textContent = '🗑️ Excluir Tabela';
-deleteTableBtn.className = 'delete-table-btn';
-deleteTableBtn.style.marginBottom = '1rem';
+  const title = document.createElement("h2");
+  title.textContent = `Tabela de ${capitalize(person)}`;
+  section.appendChild(title);
 
-deleteTableBtn.addEventListener('click', () => {
-  const confirmar = confirm(`Tem certeza que deseja excluir toda a tabela de ${capitalize(person)}?`);
-  if (confirmar) {
-    section.remove(); // Remove visualmente
-    peopleTables.delete(person); // Remove da estrutura de dados
-  }
-});
+  const deleteTableBtn = document.createElement("button");
+  deleteTableBtn.textContent = "🗑️ Excluir Tabela";
+  deleteTableBtn.className = "delete-table-btn";
+  deleteTableBtn.style.marginBottom = "1rem";
+  deleteTableBtn.addEventListener("click", () => {
+    if (
+      confirm(
+        `Tem certeza que deseja excluir toda a tabela de ${capitalize(person)}?`
+      )
+    ) {
+      section.remove();
+      peopleTables.delete(person);
+      saveAll();
+      showToast("Tabela excluída", "ok");
+    }
+  });
+  section.appendChild(deleteTableBtn);
 
-section.appendChild(deleteTableBtn);
-
-  const table = document.createElement('table');
+  const table = document.createElement("table");
   table.innerHTML = `
     <thead>
       <tr>
@@ -74,14 +142,16 @@ section.appendChild(deleteTableBtn);
   `;
   section.appendChild(table);
 
-  // Formulário interno
-  const inputGroup = document.createElement('div');
+  const inputGroup = document.createElement("div");
+  inputGroup.className = "person-add";
+  inputGroup.style.marginTop = "0.8rem";
+  const safeId = encodeURIComponent(person);
   inputGroup.innerHTML = `
-    <input type="text" id="productInput-${person}" placeholder="Produto" />
-    <input type="text" id="operationInput-${person}" placeholder="Operação" />
-    <input type="number" id="quantityInput-${person}" placeholder="Qtd" min="1" />
-    <input type="number" id="valueInput-${person}" placeholder="Valor unitário" step="0.01" min="0" />
-    <button type="button" id="addProductBtn-${person}">➕ Adicionar Produto</button>
+    <input type="text" id="productInput-${safeId}" placeholder="Produto" />
+    <input type="text" id="operationInput-${safeId}" placeholder="Operação" />
+    <input type="number" id="quantityInput-${safeId}" placeholder="Qtd" min="1" />
+    <input type="number" id="valueInput-${safeId}" placeholder="Valor unitário" step="0.01" min="0" />
+    <button type="button" id="addProductBtn-${safeId}">➕ Adicionar Produto</button>
   `;
   section.appendChild(inputGroup);
 
@@ -89,191 +159,332 @@ section.appendChild(deleteTableBtn);
 
   const personData = {
     produtos: {},
-    tbody: table.querySelector('tbody')
+    tbody: table.querySelector("tbody"),
+    section,
   };
-
   peopleTables.set(person, personData);
 
-  // Botão interno da pessoa
-  inputGroup.querySelector(`#addProductBtn-${person}`).addEventListener('click', () => {
-    const prod = inputGroup.querySelector(`#productInput-${person}`).value.trim().toLowerCase();
-    const op = inputGroup.querySelector(`#operationInput-${person}`).value.trim();
-    const qtd = parseInt(inputGroup.querySelector(`#quantityInput-${person}`).value);
-    const val = parseFloat(inputGroup.querySelector(`#valueInput-${person}`).value);
-
-    if (!prod || !op || isNaN(qtd) || isNaN(val) || qtd <= 0) return;
-
-    addProductOperation(person, prod, op, qtd, val);
-
-    // Limpa inputs locais
-    inputGroup.querySelector(`#productInput-${person}`).value = '';
-    inputGroup.querySelector(`#operationInput-${person}`).value = '';
-    inputGroup.querySelector(`#quantityInput-${person}`).value = '';
-    inputGroup.querySelector(`#valueInput-${person}`).value = '';
-  });
+  inputGroup
+    .querySelector(`#addProductBtn-${safeId}`)
+    .addEventListener("click", () => {
+      const prod = (
+        inputGroup.querySelector(`#productInput-${safeId}`).value || ""
+      )
+        .trim()
+        .toLowerCase();
+      const op = (
+        inputGroup.querySelector(`#operationInput-${safeId}`).value || ""
+      ).trim();
+      const qtd = parseInt(
+        inputGroup.querySelector(`#quantityInput-${safeId}`).value,
+        10
+      );
+      const val = parseFloat(
+        inputGroup.querySelector(`#valueInput-${safeId}`).value
+      );
+      if (!prod || !op || isNaN(qtd) || isNaN(val) || qtd <= 0) {
+        showToast("Preencha todos os campos do produto.", "error");
+        return;
+      }
+      addProductOperation(person, prod, op, qtd, val);
+      inputGroup.querySelector(`#productInput-${safeId}`).value = "";
+      inputGroup.querySelector(`#operationInput-${safeId}`).value = "";
+      inputGroup.querySelector(`#quantityInput-${safeId}`).value = "";
+      inputGroup.querySelector(`#valueInput-${safeId}`).value = "";
+      showToast("Produto adicionado", "ok");
+    });
 }
 
+/* ---------- Data mutation: add operation ---------- */
 function addProductOperation(person, product, operation, quantity, unitValue) {
   const personData = peopleTables.get(person);
-
-  if (!personData.produtos[product]) {
-    personData.produtos[product] = [];
-  }
-
+  if (!personData) return;
+  if (!personData.produtos[product]) personData.produtos[product] = [];
   personData.produtos[product].push({
     tipo: operation,
     quantidade: quantity,
-    valor: unitValue
+    valor: unitValue,
   });
-
+  saveAll();
   renderTable(person);
 }
 
+/* ---------- Render table and inline edit (produto + operações) ---------- */
 function renderTable(person) {
-  const { produtos, tbody } = peopleTables.get(person);
-  tbody.innerHTML = '';
+  const personData = peopleTables.get(person);
+  if (!personData) return;
+  const { produtos, tbody } = personData;
 
+  tbody.innerHTML = "";
   let totalGeral = 0;
 
-  for (const produto in produtos) {
-    const operacoes = produtos[produto];
+  const esc = (t) =>
+    String(t || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+
+  for (const produtoKey in produtos) {
+    const operacoes = produtos[produtoKey] || [];
     let subtotal = 0;
 
-    const opsHTML = operacoes.map(op => {
+    const opsList = document.createElement("ul");
+    opsList.style.paddingLeft = "1rem";
+    opsList.style.margin = "0";
+
+    operacoes.forEach((op) => {
       const totalOp = op.quantidade * op.valor;
       subtotal += totalOp;
-      return `<li>${op.tipo}: ${op.quantidade} × R$ ${op.valor.toFixed(2)} = <strong>R$ ${totalOp.toFixed(2)}</strong></li>`;
-    }).join('');
+      const li = document.createElement("li");
+      li.style.marginBottom = "0.35rem";
+      li.innerHTML = `${esc(op.tipo)}: ${op.quantidade} × R$ ${op.valor.toFixed(
+        2
+      )} = <strong>R$ ${totalOp.toFixed(2)}</strong>`;
+      opsList.appendChild(li);
+    });
 
     totalGeral += subtotal;
 
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${produto}</td>
-      <td><ul>${opsHTML}</ul></td>
-      <td>
-        <strong>R$ ${subtotal.toFixed(2)}</strong><br>
-        <button class="edit-product-btn" data-produto="${produto}" data-pessoa="${person}">✏️ Editar</button>
-        <button class="delete-product-btn" data-produto="${produto}" data-pessoa="${person}">🗑️ Excluir</button>
-      </td>
-    `;
+    const tr = document.createElement("tr");
+
+    const tdProd = document.createElement("td");
+    tdProd.className = "prod-name";
+    tdProd.textContent = produtoKey;
+    tr.appendChild(tdProd);
+
+    const tdOps = document.createElement("td");
+    tdOps.appendChild(opsList);
+    tr.appendChild(tdOps);
+
+    const tdTotal = document.createElement("td");
+    tdTotal.innerHTML = `<strong>R$ ${subtotal.toFixed(2)}</strong><br>`;
+
+    const editBtn = document.createElement("button");
+    editBtn.className = "edit-product-btn";
+    editBtn.dataset.produto = produtoKey;
+    editBtn.dataset.pessoa = person;
+    editBtn.textContent = "✏️ Editar";
+    editBtn.style.marginRight = "8px";
+
+    const delBtn = document.createElement("button");
+    delBtn.className = "delete-product-btn";
+    delBtn.dataset.produto = produtoKey;
+    delBtn.dataset.pessoa = person;
+    delBtn.textContent = "🗑️ Excluir";
+
+    tdTotal.appendChild(editBtn);
+    tdTotal.appendChild(delBtn);
+    tr.appendChild(tdTotal);
+
     tbody.appendChild(tr);
+
+    /* excluir produto */
+    delBtn.addEventListener("click", () => {
+      if (
+        confirm(
+          `Deseja excluir o produto "${produtoKey}" da tabela de ${capitalize(
+            person
+          )}?`
+        )
+      ) {
+        delete produtos[produtoKey];
+        saveAll();
+        renderTable(person);
+        showToast("Produto excluído", "ok");
+      }
+    });
+
+    /* editar inline: somente produto + operações */
+    editBtn.addEventListener("click", () => {
+      if (tr.classList.contains("editing")) return;
+      tr.classList.add("editing");
+
+      const originalKey = produtoKey;
+      const originalOps = operacoes.map((o) => ({ ...o }));
+
+      /* produto -> input */
+      const inputName = document.createElement("input");
+      inputName.type = "text";
+      inputName.className = "inline-edit-name";
+      inputName.value = tdProd.textContent;
+      inputName.style.width = "100%";
+      inputName.style.boxSizing = "border-box";
+      tdProd.innerHTML = "";
+      tdProd.appendChild(inputName);
+
+      /* operações -> edit rows */
+      const opsContainer = document.createElement("div");
+      opsContainer.className = "inline-ops";
+      opsContainer.style.display = "flex";
+      opsContainer.style.flexDirection = "column";
+      opsContainer.style.gap = "6px";
+
+      originalOps.forEach((op) =>
+        opsContainer.appendChild(
+          makeOpEditRow(op.tipo, op.quantidade, op.valor)
+        )
+      );
+
+      const addOpBtn = document.createElement("button");
+      addOpBtn.type = "button";
+      addOpBtn.className = "inline-add-op";
+      addOpBtn.textContent = "+ Adicionar operação";
+      addOpBtn.addEventListener("click", () =>
+        opsContainer.appendChild(makeOpEditRow("", 1, 0))
+      );
+
+      tdOps.innerHTML = "";
+      tdOps.appendChild(opsContainer);
+      tdOps.appendChild(addOpBtn);
+
+      /* esconder botões originais e adicionar Salvar/Cancelar */
+      editBtn.style.display = "none";
+      delBtn.style.display = "none";
+
+      const saveBtn = document.createElement("button");
+      saveBtn.className = "inline-save-btn";
+      saveBtn.textContent = "💾 Salvar";
+      saveBtn.style.marginRight = "8px";
+
+      const cancelBtn = document.createElement("button");
+      cancelBtn.className = "inline-cancel-btn";
+      cancelBtn.textContent = "❌ Cancelar";
+
+      tdTotal.appendChild(saveBtn);
+      tdTotal.appendChild(cancelBtn);
+
+      /* keyboard: Enter => save, Esc => cancel (scoped to tr) */
+      function onKey(e) {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          cancelBtn.click();
+        } else if (e.key === "Enter") {
+          const active = document.activeElement;
+          if (
+            tr.contains(active) &&
+            (active.tagName === "INPUT" || active.tagName === "TEXTAREA")
+          ) {
+            e.preventDefault();
+            saveBtn.click();
+          }
+        }
+      }
+      tr._keyHandler = onKey;
+      tr.addEventListener("keydown", onKey);
+
+      cancelBtn.addEventListener("click", () => {
+        tr.removeEventListener("keydown", tr._keyHandler);
+        renderTable(person);
+        showToast("Edição cancelada", "error");
+      });
+
+      saveBtn.addEventListener("click", () => {
+        const newProdRaw = (inputName.value || "").trim();
+        const newKey = newProdRaw ? newProdRaw.toLowerCase() : originalKey;
+
+        const newOps = Array.from(
+          opsContainer.querySelectorAll(".inline-op-row")
+        )
+          .map((row) => {
+            const tipo = (
+              row.querySelector(".inline-edit-tipo")?.value || ""
+            ).trim();
+            const quantidade =
+              parseInt(
+                row.querySelector(".inline-edit-qtd")?.value || "0",
+                10
+              ) || 0;
+            const valor =
+              parseFloat(row.querySelector(".inline-edit-val")?.value || "0") ||
+              0;
+            return { tipo, quantidade, valor };
+          })
+          .filter((o) => o.tipo && o.quantidade > 0 && !Number.isNaN(o.valor));
+
+        if (newOps.length === 0) {
+          showToast("Informe ao menos uma operação válida.", "error");
+          return;
+        }
+
+        /* atualizar somente o necessário */
+        if (newKey !== originalKey && produtos[newKey]) {
+          const ok = confirm(
+            `Produto "${newKey}" já existe. Deseja sobrescrever?`
+          );
+          if (!ok) return;
+          delete produtos[originalKey];
+          produtos[newKey] = newOps;
+        } else if (newKey !== originalKey) {
+          delete produtos[originalKey];
+          produtos[newKey] = newOps;
+        } else {
+          produtos[originalKey] = newOps;
+        }
+
+        saveAll();
+        tr.removeEventListener("keydown", tr._keyHandler);
+        renderTable(person);
+        showToast("Produto atualizado", "ok");
+      });
+    });
   }
 
-  const totalRow = document.createElement('tr');
+  /* total geral */
+  const totalRow = document.createElement("tr");
   totalRow.innerHTML = `
     <td colspan="2" style="text-align:right;"><strong>Total Geral:</strong></td>
     <td><strong style="color:#c026d3;">R$ ${totalGeral.toFixed(2)}</strong></td>
   `;
   tbody.appendChild(totalRow);
-
-  // Excluir produto
-  tbody.querySelectorAll('.delete-product-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const produto = btn.dataset.produto;
-      const pessoa = btn.dataset.pessoa;
-      if (confirm(`Deseja excluir o produto "${produto}" da tabela de ${capitalize(pessoa)}?`)) {
-        delete peopleTables.get(pessoa).produtos[produto];
-        renderTable(pessoa);
-      }
-    });
-  });
-
-  // Editar produto
-  tbody.querySelectorAll('.edit-product-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const produto = btn.dataset.produto;
-      const pessoa = btn.dataset.pessoa;
-      const produtoAtual = peopleTables.get(pessoa).produtos[produto];
-
-      // Prompt para nova descrição (simples)
-      const novoNome = prompt(`Editar nome do produto "${produto}":`, produto);
-      if (!novoNome) return;
-
-      // Opcional: redefinir operações
-      const redefinir = confirm("Deseja redefinir as operações existentes?");
-      let novasOperacoes = produtoAtual;
-
-      if (redefinir) {
-        const novaLista = prompt("Digite novas operações no formato: tipo,qtd,valor;tipo,qtd,valor...");
-        if (novaLista) {
-          novasOperacoes = novaLista.split(";").map(item => {
-            const [tipo, qtd, val] = item.split(",");
-            return {
-              tipo: tipo.trim(),
-              quantidade: parseInt(qtd),
-              valor: parseFloat(val)
-            };
-          }).filter(op => op.tipo && !isNaN(op.quantidade) && !isNaN(op.valor));
-        }
-      }
-
-      // Atualiza dados
-      const tabela = peopleTables.get(pessoa);
-      delete tabela.produtos[produto];
-      tabela.produtos[novoNome.toLowerCase()] = novasOperacoes;
-      renderTable(pessoa);
-    });
-    tbody.querySelectorAll('.edit-product-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    const produto = btn.dataset.produto;
-    const pessoa = btn.dataset.pessoa;
-    const tabela = peopleTables.get(pessoa);
-    const operacoes = tabela.produtos[produto];
-
-    // Cria nova linha com formulário
-    const editRow = document.createElement('tr');
-    editRow.innerHTML = `
-      <td><input type="text" class="edit-produto-nome" value="${produto}" /></td>
-      <td>
-        <div class="edit-ops">
-          ${operacoes.map((op, i) => `
-            <div style="margin-bottom: 0.5rem;">
-              <input type="text" placeholder="Operação" value="${op.tipo}" data-i="${i}" class="edit-op" />
-              <input type="number" min="1" value="${op.quantidade}" data-i="${i}" class="edit-qtd" />
-              <input type="number" min="0" step="0.01" value="${op.valor}" data-i="${i}" class="edit-val" />
-            </div>
-          `).join('')}
-        </div>
-      </td>
-      <td>
-        <button class="save-edit-btn" data-produto="${produto}" data-pessoa="${pessoa}">💾 Salvar</button>
-        <button class="cancel-edit-btn">❌ Cancelar</button>
-      </td>
-    `;
-
-    // Substitui a linha original pela edição
-    btn.closest('tr').replaceWith(editRow);
-
-    // Cancelar
-    editRow.querySelector('.cancel-edit-btn').addEventListener('click', () => {
-      renderTable(pessoa);
-    });
-
-    // Salvar
-    editRow.querySelector('.save-edit-btn').addEventListener('click', () => {
-      const novoNome = editRow.querySelector('.edit-produto-nome').value.trim().toLowerCase();
-
-      const novosDados = Array.from(editRow.querySelectorAll('.edit-ops > div')).map(div => ({
-        tipo: div.querySelector('.edit-op').value.trim(),
-        quantidade: parseInt(div.querySelector('.edit-qtd').value),
-        valor: parseFloat(div.querySelector('.edit-val').value)
-      })).filter(op => op.tipo && !isNaN(op.quantidade) && !isNaN(op.valor));
-
-      if (!novoNome || novosDados.length === 0) {
-        alert("Preencha todos os campos corretamente.");
-        return;
-      }
-
-      delete tabela.produtos[produto]; // Remove antigo
-      tabela.produtos[novoNome] = novosDados; // Adiciona novo
-      renderTable(pessoa);
-    });
-  });
-});
-  });
 }
 
-function capitalize(str) {
+/* ---------- Helpers ---------- */
+function makeOpEditRow(tipoVal = "", qtdVal = 1, valVal = 0) {
+  const row = document.createElement("div");
+  row.className = "inline-op-row";
+  row.style.display = "flex";
+  row.style.gap = "8px";
+  row.style.alignItems = "center";
+
+  const tipo = document.createElement("input");
+  tipo.type = "text";
+  tipo.className = "inline-edit-tipo";
+  tipo.placeholder = "Operação";
+  tipo.value = tipoVal || "";
+  tipo.style.flex = "1";
+
+  const qtd = document.createElement("input");
+  qtd.type = "number";
+  qtd.min = "1";
+  qtd.className = "inline-edit-qtd";
+  qtd.value = String(qtdVal || 1);
+  qtd.style.width = "84px";
+
+  const val = document.createElement("input");
+  val.type = "number";
+  val.step = "0.01";
+  val.min = "0";
+  val.className = "inline-edit-val";
+  val.value = String(valVal || 0);
+  val.style.width = "110px";
+
+  const rem = document.createElement("button");
+  rem.type = "button";
+  rem.className = "inline-remove-op";
+  rem.textContent = "Remover";
+  rem.addEventListener("click", () => row.remove());
+
+  row.appendChild(tipo);
+  row.appendChild(qtd);
+  row.appendChild(val);
+  row.appendChild(rem);
+
+  return row;
+  
+}
+
+function capitalize(str = "") {
+  if (!str) return "";
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
+// ...existing code...
